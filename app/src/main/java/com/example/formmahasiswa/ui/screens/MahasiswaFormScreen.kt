@@ -1,6 +1,11 @@
 package com.example.formmahasiswa.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,19 +14,26 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.formmahasiswa.model.Mahasiswa
+import kotlinx.coroutines.launch
 
 /**
  * Screen utama untuk input data Mahasiswa.
@@ -47,6 +59,11 @@ fun MahasiswaFormScreen() {
     var nim by remember { mutableStateOf("") }
     var prodi by remember { mutableStateOf("") }
 
+    // State error validasi
+    var namaError by remember { mutableStateOf<String?>(null) }
+    var nimError by remember { mutableStateOf<String?>(null) }
+    var prodiError by remember { mutableStateOf<String?>(null) }
+
     // State data mahasiswa yang berhasil disubmit (Recomposition trigger)
     var submittedMahasiswa by remember { mutableStateOf<Mahasiswa?>(null) }
 
@@ -60,7 +77,67 @@ fun MahasiswaFormScreen() {
         "Ilmu Komputer"
     )
 
+    // State untuk Snackbar & CoroutineScope
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // ------------------------------------------------------------------------
+    // 2. LOGIKA VALIDASI INPUT
+    // ------------------------------------------------------------------------
+    fun validateInputs(): Boolean {
+        var isValid = true
+
+        // Validasi Nama: tidak boleh kosong dan minimal 3 karakter
+        if (nama.isBlank()) {
+            namaError = "Nama lengkap wajib diisi"
+            isValid = false
+        } else if (nama.trim().length < 3) {
+            namaError = "Nama minimal harus 3 karakter"
+            isValid = false
+        } else {
+            namaError = null
+        }
+
+        // Validasi NIM: tidak boleh kosong, hanya angka, harus tepat 7 digit (contoh: 2411025)
+        if (nim.isBlank()) {
+            nimError = "NIM wajib diisi"
+            isValid = false
+        } else if (!nim.all { it.isDigit() }) {
+            nimError = "NIM hanya boleh berisi angka"
+            isValid = false
+        } else if (nim.length != 7) {
+            nimError = "NIM harus tepat 7 digit (contoh: 2411025)"
+            isValid = false
+        } else {
+            nimError = null
+        }
+
+        // Validasi Program Studi: tidak boleh kosong
+        if (prodi.isBlank()) {
+            prodiError = "Program Studi wajib dipilih"
+            isValid = false
+        } else {
+            prodiError = null
+        }
+
+        return isValid
+    }
+
+    // ------------------------------------------------------------------------
+    // UI LAYOUT DENGAN SCAFFOLD & SNACKBAR
+    // ------------------------------------------------------------------------
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    actionColor = MaterialTheme.colorScheme.secondary,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Column(
@@ -94,6 +171,7 @@ fun MahasiswaFormScreen() {
                 // EVENT: onValueChange mengupdate State & mereset pesan error
                 onValueChange = { newValue ->
                     nama = newValue
+                    if (namaError != null) namaError = null
                 },
                 label = { Text("Nama Lengkap") },
                 placeholder = { Text("Contoh: Budi Santoso") },
@@ -101,14 +179,31 @@ fun MahasiswaFormScreen() {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Icon Nama",
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (namaError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
                 },
+                trailingIcon = {
+                    if (namaError != null) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = "Error Nama",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                isError = namaError != null,
                 supportingText = {
-                    Text(
-                        text = "${nama.length} karakter",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (namaError != null) {
+                        Text(
+                            text = namaError ?: "",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Text(
+                            text = "${nama.length} karakter",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -133,6 +228,7 @@ fun MahasiswaFormScreen() {
                 onValueChange = { newValue ->
                     if (newValue.length <= 7 && newValue.all { it.isDigit() }) {
                         nim = newValue
+                        if (nimError != null) nimError = null
                     }
                 },
                 label = { Text("NIM (7 Digit)") },
@@ -141,14 +237,31 @@ fun MahasiswaFormScreen() {
                     Icon(
                         imageVector = Icons.Default.Badge,
                         contentDescription = "Icon NIM",
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (nimError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
                 },
+                trailingIcon = {
+                    if (nimError != null) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = "Error NIM",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                isError = nimError != null,
                 supportingText = {
-                    Text(
-                        text = "${nim.length}/7 digit angka",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (nimError != null) {
+                        Text(
+                            text = nimError ?: "",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Text(
+                            text = "${nim.length}/7 digit angka",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -182,11 +295,20 @@ fun MahasiswaFormScreen() {
                         Icon(
                             imageVector = Icons.Default.School,
                             contentDescription = "Icon Prodi",
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = if (prodiError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                     },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = isProdiExpanded)
+                    },
+                    isError = prodiError != null,
+                    supportingText = {
+                        if (prodiError != null) {
+                            Text(
+                                text = prodiError ?: "",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     },
                     shape = RoundedCornerShape(14.dp),
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
@@ -206,12 +328,207 @@ fun MahasiswaFormScreen() {
                             // EVENT: onClick pemilihan item dropdown
                             onClick = {
                                 prodi = pilihanProdi
+                                prodiError = null
                                 isProdiExpanded = false
                             }
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ----------------------------------------------------------------
+            // ACTION BUTTONS: SIMPAN & RESET
+            // ----------------------------------------------------------------
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Tombol Reset
+                OutlinedButton(
+                    // EVENT: onClick Reset
+                    onClick = {
+                        nama = ""
+                        nim = ""
+                        prodi = ""
+                        namaError = null
+                        nimError = null
+                        prodiError = null
+                        submittedMahasiswa = null
+                        focusManager.clearFocus()
+
+                        // Menampilkan Snackbar info reset
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = "Formulir telah dibersihkan.",
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Reset Form",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Reset")
+                }
+
+                // Tombol Simpan
+                Button(
+                    // EVENT: onClick Simpan dengan Validasi & Snackbar
+                    onClick = {
+                        focusManager.clearFocus()
+                        val isValid = validateInputs()
+
+                        coroutineScope.launch {
+                            if (isValid) {
+                                // Memperbarui state submittedMahasiswa (memicu RECOMPOSITION pada Card Hasil)
+                                submittedMahasiswa = Mahasiswa(
+                                    nama = nama.trim(),
+                                    nim = nim.trim(),
+                                    prodi = prodi
+                                )
+
+                                // Menampilkan Snackbar Berhasil
+                                snackbarHostState.showSnackbar(
+                                    message = "Berhasil! Data $nama tersimpan.",
+                                    actionLabel = "Tutup",
+                                    duration = SnackbarDuration.Short
+                                )
+                            } else {
+                                // Menampilkan Snackbar Validasi Gagal
+                                snackbarHostState.showSnackbar(
+                                    message = "Validasi gagal. Mohon periksa kembali isian Anda.",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier
+                        .weight(1.5f)
+                        .height(50.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Simpan Data",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Simpan Data",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // ----------------------------------------------------------------
+            // 5. DEMONSTRASI RECOMPOSITION: HASIL OUTPUT CARD
+            // ----------------------------------------------------------------
+            // Komponen ini akan otomatis di-rekomposisi dan dirender
+            // ketika state `submittedMahasiswa` berubah nilainya.
+            AnimatedVisibility(
+                visible = submittedMahasiswa != null,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }),
+                exit = fadeOut()
+            ) {
+                val currentMahasiswa = submittedMahasiswa
+                if (currentMahasiswa != null) {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Status Berhasil",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Data Tersimpan (Recomposition Result)",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                thickness = 1.dp,
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
+
+                            // Item Nama
+                            DataRowItem(label = "Nama Lengkap", value = currentMahasiswa.nama)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Item NIM
+                            DataRowItem(label = "NIM", value = currentMahasiswa.nim)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Item Program Studi
+                            DataRowItem(label = "Program Studi", value = currentMahasiswa.prodi)
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+/**
+ * Komponen pembantu untuk menampilkan baris data tersimpan
+ */
+@Composable
+fun DataRowItem(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        )
     }
 }
