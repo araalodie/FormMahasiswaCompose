@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.example.formmahasiswa.ui.screens.MahasiswaFormScreen
 import com.example.formmahasiswa.ui.theme.FormMahasiswaTheme
 
 class MainActivity : ComponentActivity() {
@@ -17,7 +18,7 @@ class MainActivity : ComponentActivity() {
             // Menerapkan tema gelap aplikasi
             FormMahasiswaTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    // Layar formulir mahasiswa akan dimuat di sini
+                    MahasiswaFormScreen()
                 }
             }
         }
